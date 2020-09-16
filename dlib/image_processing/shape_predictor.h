@@ -12,6 +12,8 @@
 #include "../statistics.h"
 #include <utility>
 
+#include <stdio.h>
+
 namespace dlib
 {
 
@@ -58,6 +60,7 @@ namespace dlib
             std::vector<split_feature> splits;
             std::vector<matrix<float,0,1> > leaf_values;
 
+            unsigned long num_splits() const { return splits.size(); }
             unsigned long num_leaves() const { return leaf_values.size(); }
 
             inline const matrix<float,0,1>& operator()(
@@ -424,10 +427,83 @@ namespace dlib
         dlib::deserialize(version, in);
         if (version != 1)
             throw serialization_error("Unexpected version found while deserializing dlib::shape_predictor.");
+
         dlib::deserialize(item.initial_shape, in);
         dlib::deserialize(item.forests, in);
         dlib::deserialize(item.anchor_idx, in);
         dlib::deserialize(item.deltas, in);
+
+        long nr = item.initial_shape.nr();
+        long nc = item.initial_shape.nc();
+
+        printf ("# version: %d\n", version);
+        printf ("# initial_shape: %ldx%ld\n", nr, nc);
+        int depth = (int)std::log2(item.forests[0][0].num_leaves());
+        printf ("# forests: %ldx%ldd%d\n", item.forests.size(), item.forests[0].size(), depth);
+
+        if (item.deltas[0].size() != item.anchor_idx[0].size())
+            throw serialization_error("deltas and anchor sizes do not match");
+
+        printf ("# features: %ld\n", item.deltas[0].size());
+
+        for (long r = 0; r < nr; ++r)
+        {
+            for (long c = 0; c < nc; ++c)
+            {
+                printf ("%.16f", item.initial_shape(r, c));
+                if (r < (nr-1)) printf (",");
+            }
+        }
+        printf ("\n");
+
+        for (long f = 0; f < item.forests.size(); ++f)
+        {
+            auto forest = item.forests[f];
+
+            for (long t = 0; t < forest.size(); ++t) {
+                auto tree = forest[t];
+
+                for (long s = 0; s < tree.num_splits(); ++s) 
+                {
+                    auto split = tree.splits[s];
+                    printf ("%lu,%lu,%.16f\n", split.idx1, split.idx2, split.thresh);
+                }
+
+                for (long l = 0; l < tree.num_leaves(); ++l) 
+                {
+                    auto leaf = tree.leaf_values[l];
+                    long nr = leaf.nr();
+                    long nc = leaf.nc();
+                    for (long r = 0; r < nr; ++r)
+                    {
+                        for (long c = 0; c < nc; ++c)
+                        {
+                            // if (c+1 == nc)
+                            //     printf ("%.16f\n", leaf(r, c));
+                            // else
+                            printf ("%.16f", leaf(r, c));
+                            if (r < (nr-1)) printf (",");
+                        }
+                    }
+                    printf ("\n");
+                }
+            }
+            auto arr = item.anchor_idx[f];
+            for (long j = 0; j < arr.size(); ++j)
+            {
+                printf ("%ld", arr[j]);
+                if (j < (arr.size() - 1)) printf (",");
+            }
+            printf ("\n");
+
+            for (long d = 0; d < item.deltas[f].size(); ++d)
+            {
+                printf ("%.16f,%.16f\n",
+                        item.deltas[f][d].x(),
+                        item.deltas[f][d].y());
+            }
+        }
+        printf ("\n\n");
     }
 
 // ----------------------------------------------------------------------------------------
