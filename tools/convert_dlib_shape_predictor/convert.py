@@ -1,9 +1,11 @@
 import re
 import struct
 from collections import namedtuple
+import math
 
 Header = namedtuple("Header", ["initial_shape", "forests", "forest_size",
                                "tree_depth", "features"])
+
 
 def read_header(src):
     assert re.search("# version: 1", src.readline()) is not None
@@ -49,7 +51,7 @@ def convert(src, dst):
     assert len(initial_shape) == size
 
     shape_pack = struct.Struct(f">{size}f")
-    node_pack = struct.Struct(f">IIf")
+    node_pack = struct.Struct(">IIh")
     anchor_pack = struct.Struct(f">{header.features}I")
     delta_pack = struct.Struct(">2f")
 
@@ -62,7 +64,8 @@ def convert(src, dst):
         for _ in range(header.forest_size):
             for _ in range(splits_count):
                 idx1, idx2, threshold = src.readline().strip().split(',')
-                dst.write(node_pack.pack(int(idx1), int(idx2), float(threshold)))
+                threshold = int(math.ceil(float(threshold)))
+                dst.write(node_pack.pack(int(idx1), int(idx2), threshold))
 
             for _ in range(leafs_count):
                 leaf_values = list(map(float, src.readline().strip().split(',')))
